@@ -1,0 +1,76 @@
+---
+- name: install MWM GA Runners
+  hosts: mwm-gar-runners
+  remote_user: x101675
+  become: true # allow to run tasks with sudo
+
+  vars:
+    github:
+      ga_url: [org or repo url]
+      ga_token: [token_value]
+    proxy_env:
+      http_proxy: [url to proxy]
+
+  tasks:
+    - name: Install lastest git package
+      ansible.builtin.yum:
+        name: git
+        state: latest
+
+    - name: Download Runner Image
+      ansible.builtin.get_url:
+        dest: /tmp/actions-runner-linux-x64-2.308.0.tar.gz
+        url: https://github.com/actions/runner/releases/download/v2.308.0/actions-runner-linux-x64-2.308.0.tar.gz
+
+    - name: Create dedicated user for agent
+      ansible.builtin.user:
+        name: gha_user
+
+    - name: Extract runner from zip
+      ansible.builtin.unarchive:
+        dest: /opt/gha_runner
+        list_files: true
+        owner: gha_user
+        src: /tmp/actions-runner-linux-x64-2.308.0.tar.gz
+
+    - name: Configure runner
+      ansible.builtin.script: /opt/gha_runner/config.sh --url {{ ga_url }} --token {{ ga_token }}
+
+    - name: Install as service the runner
+      ansible.builtin.script: /opt/gha_runner/svc.sh gha_user
+
+    - name: Add Docker repo
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docer-ce.repo
+
+    - name: Enable Docker Edge repo
+      ansible.builtin.ini_file:
+        dest: /etc/yum.repos.d/docer-ce.repo
+        section: "docker-ce-edge"
+        option: enabled
+        value: 0
+
+    - name: Enable Docker Test repo
+      ansible.builtin.ini_file:
+        dest: /etc/yum.repos.d/docer-ce.repo
+        section: "docker-ce-test"
+        option: enabled
+        value: 0
+
+    - name: Install Docker
+      ansible.builtin.yum:
+        name: docker-ce
+        state: latest
+
+    - name: Start Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add user gha_user to docker group
+      ansible.builtin.user:
+        name: gha_user
+        groups: docker
+        append: yes

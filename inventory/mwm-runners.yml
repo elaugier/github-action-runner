@@ -1,0 +1,4 @@
+mwm-gar-runners:
+  hosts:
+    mwm-gar-runner-01:
+    mwm-gar-runner-02:
